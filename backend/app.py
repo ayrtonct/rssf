@@ -1,9 +1,11 @@
 # app.py
 import os
 from flask import Flask
+from flask_cors import CORS
 from routes.medicoes import medicoes_bp
 
 app = Flask(__name__)
+CORS(app)
 
 # Registrar as rotas
 app.register_blueprint(medicoes_bp)
