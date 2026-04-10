@@ -39,15 +39,15 @@ class MedicaoModel:
     def _to_dict(row):
         val = row[1]
         if isinstance(val, (bytes, bytearray)):
-            data_hora_str = val.decode('utf-8')
+            created_at_str = val.decode('utf-8')
         elif hasattr(val, 'isoformat'):
-            data_hora_str = val.isoformat()
+            created_at_str = val.isoformat()
         else:
-            data_hora_str = str(val)
+            created_at_str = str(val)
             
         return {
             "id": row[0],
-            "data_hora": data_hora_str,
+            "data_hora": created_at_str,
             "sensor_id": row[2],
             "temp_ds1": row[3],
             "temp_ds2": row[4],
@@ -65,7 +65,7 @@ class MedicaoModel:
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
-            sql = "SELECT id, data_hora, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE sensor_id = %s ORDER BY data_hora DESC LIMIT %s"
+            sql = "SELECT id, created_at, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE sensor_id = %s ORDER BY created_at DESC LIMIT %s"
             cursor.execute(sql, (sensor_id, int(limite)))
             rows = cursor.fetchall()
             return [MedicaoModel._to_dict(row) for row in rows]
@@ -83,7 +83,7 @@ class MedicaoModel:
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
-            sql = "SELECT id, data_hora, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE data_hora BETWEEN %s AND %s ORDER BY data_hora DESC"
+            sql = "SELECT id, created_at, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE created_at BETWEEN %s AND %s ORDER BY created_at DESC"
             cursor.execute(sql, (inicio, fim))
             rows = cursor.fetchall()
             return [MedicaoModel._to_dict(row) for row in rows]
@@ -102,10 +102,10 @@ class MedicaoModel:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
             sql = """
-                SELECT id, data_hora, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi 
+                SELECT id, created_at, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi 
                 FROM medicoes m1
-                WHERE data_hora = (
-                    SELECT MAX(data_hora) 
+                WHERE created_at = (
+                    SELECT MAX(created_at) 
                     FROM medicoes m2 
                     WHERE m1.sensor_id = m2.sensor_id
                 )

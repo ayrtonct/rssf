@@ -53,7 +53,7 @@ def get_status():
         conn = mysql.connector.connect(**DB_CONFIG)
         cursor = conn.cursor(dictionary=True)
         cursor.execute("""
-            SELECT sensor_id, MAX(data_hora) as ultima_transmissao
+            SELECT sensor_id, MAX(created_at) as ultima_transmissao
             FROM medicoes
             GROUP BY sensor_id
         """)
