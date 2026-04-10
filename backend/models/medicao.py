@@ -37,9 +37,17 @@ class MedicaoModel:
 
     @staticmethod
     def _to_dict(row):
+        val = row[1]
+        if isinstance(val, (bytes, bytearray)):
+            data_hora_str = val.decode('utf-8')
+        elif hasattr(val, 'isoformat'):
+            data_hora_str = val.isoformat()
+        else:
+            data_hora_str = str(val)
+            
         return {
             "id": row[0],
-            "data_hora": row[1].isoformat() if hasattr(row[1], 'isoformat') else row[1],
+            "data_hora": data_hora_str,
             "sensor_id": row[2],
             "temp_ds1": row[3],
             "temp_ds2": row[4],

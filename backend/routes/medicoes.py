@@ -64,6 +64,16 @@ def get_status():
 
         for s in sensores:
             ultima = s['ultima_transmissao']
+            
+            if isinstance(ultima, (bytes, bytearray)):
+                ultima = ultima.decode('utf-8')
+            if isinstance(ultima, str):
+                # O banco pode retornar string se use_pure=True
+                try:
+                    ultima = datetime.strptime(ultima, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    ultima = datetime.strptime(ultima, "%Y-%m-%d %H:%M:%S.%f")
+
             delta  = agora - ultima
             minutos = int(delta.total_seconds() / 60)
 
