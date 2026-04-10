@@ -34,3 +34,80 @@ class MedicaoModel:
                 if cursor:
                     cursor.close()
                 conn.close()
+
+    @staticmethod
+    def _to_dict(row):
+        return {
+            "id": row[0],
+            "data_hora": row[1].isoformat() if hasattr(row[1], 'isoformat') else row[1],
+            "sensor_id": row[2],
+            "temp_ds1": row[3],
+            "temp_ds2": row[4],
+            "temp_ds3": row[5],
+            "temp_ds4": row[6],
+            "temp_ds5": row[7],
+            "temp_ds6": row[8],
+            "rssi": row[9]
+        }
+
+    @staticmethod
+    def get_por_sensor(sensor_id, limite=100):
+        conn = None
+        cursor = None
+        try:
+            conn = mysql.connector.connect(**DB_CONFIG)
+            cursor = conn.cursor()
+            sql = "SELECT id, data_hora, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE sensor_id = %s ORDER BY data_hora DESC LIMIT %s"
+            cursor.execute(sql, (sensor_id, int(limite)))
+            rows = cursor.fetchall()
+            return [MedicaoModel._to_dict(row) for row in rows]
+        except Exception as e:
+            raise e
+        finally:
+            if conn and conn.is_connected():
+                if cursor: cursor.close()
+                conn.close()
+
+    @staticmethod
+    def get_por_periodo(inicio, fim):
+        conn = None
+        cursor = None
+        try:
+            conn = mysql.connector.connect(**DB_CONFIG)
+            cursor = conn.cursor()
+            sql = "SELECT id, data_hora, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE data_hora BETWEEN %s AND %s ORDER BY data_hora DESC"
+            cursor.execute(sql, (inicio, fim))
+            rows = cursor.fetchall()
+            return [MedicaoModel._to_dict(row) for row in rows]
+        except Exception as e:
+            raise e
+        finally:
+            if conn and conn.is_connected():
+                if cursor: cursor.close()
+                conn.close()
+
+    @staticmethod
+    def get_recentes():
+        conn = None
+        cursor = None
+        try:
+            conn = mysql.connector.connect(**DB_CONFIG)
+            cursor = conn.cursor()
+            sql = """
+                SELECT id, data_hora, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi 
+                FROM medicoes m1
+                WHERE data_hora = (
+                    SELECT MAX(data_hora) 
+                    FROM medicoes m2 
+                    WHERE m1.sensor_id = m2.sensor_id
+                )
+            """
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            return [MedicaoModel._to_dict(row) for row in rows]
+        except Exception as e:
+            raise e
+        finally:
+            if conn and conn.is_connected():
+                if cursor: cursor.close()
+                conn.close()
