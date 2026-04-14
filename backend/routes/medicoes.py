@@ -45,6 +45,19 @@ def get_recentes():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@medicoes_bp.route('/api/medicoes/estatisticas', methods=['GET'])
+def get_estatisticas():
+    try:
+        inicio = request.args.get('inicio')
+        fim = request.args.get('fim')
+        if bool(inicio) != bool(fim):
+            return jsonify({"error": "Informe 'inicio' e 'fim' juntos."}), 400
+
+        dados = MedicaoModel.get_estatisticas_por_sensor(inicio, fim)
+        return jsonify(dados), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @medicoes_bp.route('/api/status', methods=['GET'])
 def get_status():
     conn = None

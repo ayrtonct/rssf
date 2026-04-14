@@ -3,6 +3,8 @@ import mysql.connector
 from config import DB_CONFIG
 
 class MedicaoModel:
+    SENSOR_COLUMNS = ('ds1', 'ds2', 'ds3', 'ds4', 'ds5', 'ds6')
+
     @staticmethod
     def salvar(data):
         # Ordem: id, s1, s2, s3, s4, s5, s6, rssi
@@ -118,4 +120,50 @@ class MedicaoModel:
         finally:
             if conn and conn.is_connected():
                 if cursor: cursor.close()
+                conn.close()
+
+    @staticmethod
+    def get_estatisticas_por_sensor(inicio=None, fim=None):
+        conn = None
+        cursor = None
+        try:
+            conn = mysql.connector.connect(**DB_CONFIG)
+            cursor = conn.cursor(dictionary=True)
+
+            aggregate_sql = ", ".join(
+                [
+                    f"AVG(temp_{sensor}) AS avg_{sensor}, "
+                    f"MAX(temp_{sensor}) AS max_{sensor}, "
+                    f"MIN(temp_{sensor}) AS min_{sensor}, "
+                    f"COUNT(temp_{sensor}) AS count_{sensor}"
+                    for sensor in MedicaoModel.SENSOR_COLUMNS
+                ]
+            )
+
+            sql = f"SELECT {aggregate_sql} FROM medicoes"
+            params = []
+
+            if inicio and fim:
+                sql += " WHERE created_at BETWEEN %s AND %s"
+                params.extend([inicio, fim])
+
+            cursor.execute(sql, tuple(params))
+            row = cursor.fetchone() or {}
+
+            return [
+                {
+                    "sensor_id": sensor,
+                    "avg": row.get(f"avg_{sensor}"),
+                    "max": row.get(f"max_{sensor}"),
+                    "min": row.get(f"min_{sensor}"),
+                    "count": row.get(f"count_{sensor}", 0)
+                }
+                for sensor in MedicaoModel.SENSOR_COLUMNS
+            ]
+        except Exception as e:
+            raise e
+        finally:
+            if conn and conn.is_connected():
+                if cursor:
+                    cursor.close()
                 conn.close()
