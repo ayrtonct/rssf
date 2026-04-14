@@ -130,12 +130,16 @@ class MedicaoModel:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor(dictionary=True)
 
+            def valid_temp_expr(sensor):
+                column = f"temp_{sensor}"
+                return f"CASE WHEN {column} IS NOT NULL AND {column} <> -127 THEN {column} END"
+
             aggregate_sql = ", ".join(
                 [
-                    f"AVG(temp_{sensor}) AS avg_{sensor}, "
-                    f"MAX(temp_{sensor}) AS max_{sensor}, "
-                    f"MIN(temp_{sensor}) AS min_{sensor}, "
-                    f"COUNT(temp_{sensor}) AS count_{sensor}"
+                    f"AVG({valid_temp_expr(sensor)}) AS avg_{sensor}, "
+                    f"MAX({valid_temp_expr(sensor)}) AS max_{sensor}, "
+                    f"MIN({valid_temp_expr(sensor)}) AS min_{sensor}, "
+                    f"COUNT({valid_temp_expr(sensor)}) AS count_{sensor}"
                     for sensor in MedicaoModel.SENSOR_COLUMNS
                 ]
             )
