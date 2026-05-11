@@ -11,8 +11,11 @@
 #define M0_PIN          2
 #define ONE_WIRE_BUS    15
 
-#define NODE_ADDRESS    0x0002
 #define CHANNEL         0x0F
+
+// variáveis para definir endereço do nó sensor
+uint16_t NODE_ADDRESS;
+uint8_t mac[6];
 
 // --- ENDEREÇOS DOS SENSORES (Confirmados por você) ---
 DeviceAddress sensores[] = {
@@ -39,6 +42,10 @@ void setup() {
   Serial.begin(115200);
   e220.begin();
   sensors.begin();
+
+  // atribuição de endereço para o nó sensor via endereço MAC 
+  esp_efuse_mac_get_default(mac);
+  NODE_ADDRESS = ((uint16_t)mac[4] << 8) | mac[5];
 
   // Configuração dos parâmetros do rádio
   ResponseStructContainer c = e220.getConfiguration();
