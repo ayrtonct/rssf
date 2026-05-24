@@ -2,6 +2,7 @@
 #include <LoRa_E220.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <WiFi.h>
 
 #define SAMPLE_TIME     1800000 // 30 min em ms
 #define TX_PIN          17
@@ -44,7 +45,7 @@ void setup() {
   sensors.begin();
 
   // atribuição de endereço para o nó sensor via endereço MAC 
-  esp_efuse_mac_get_default(mac);
+  WiFi.macAddress(mac);
   NODE_ADDRESS = ((uint16_t)mac[4] << 8) | mac[5];
 
   // Configuração dos parâmetros do rádio
