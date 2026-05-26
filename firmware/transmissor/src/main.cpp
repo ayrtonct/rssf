@@ -40,12 +40,15 @@ LoRa_E220 e220((byte)TX_PIN, (byte)RX_PIN, &Serial2, (byte)AUX_PIN, (byte)M0_PIN
 
 void setup() {
   Serial.begin(115200);
-  e220.begin();
-  sensors.begin();
 
   // atribuição de endereço para o nó sensor via endereço MAC 
-  esp_efuse_mac_get_default(mac);
+  WiFi.macAddress(mac);
   NODE_ADDRESS = ((uint16_t)mac[4] << 8) | mac[5];
+  if (NODE_ADDRESS == 0xFFFF) NODE_ADDRESS = 0xFFFE; // proteção contra envio broadcast
+  if (NODE_ADDRESS == 0x0000) NODE_ADDRESS = 0x0001; // proteção contra possíveis erros de leitura
+  
+  e220.begin();
+  sensors.begin();
 
   // Configuração dos parâmetros do rádio
   ResponseStructContainer c = e220.getConfiguration();
