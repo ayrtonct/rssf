@@ -2,6 +2,7 @@
 #include <LoRa_E220.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <WiFi.h>
 
 #define SAMPLE_TIME     1800000 // 30 min em ms
 #define TX_PIN          17
