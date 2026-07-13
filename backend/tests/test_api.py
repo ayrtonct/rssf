@@ -1,0 +1,189 @@
+import unittest
+from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+from app import app
+from config import DEFAULT_GATEWAY_ID
+from models.medicao import MedicaoModel
+
+
+class TestSalvarDados(unittest.TestCase):
+    def setUp(self):
+        self.client = app.test_client()
+
+    @patch('models.medicao.MedicaoModel.salvar', return_value=True)
+    def test_gateway_e32_aceita_sensor_uint16_e_rssi_nulo(self, mock_salvar):
+        payload = {
+            'gateway_id': 'gateway_e32_01',
+            'senderAddress': 44204,
+            'rssi': None,
+            'temp_ds1': 28.4,
+            'temp_ds2': 28.8,
+            'temp_ds3': 29.1,
+            'temp_ds4': 29.6,
+            'temp_ds5': 30.1,
+            'temp_ds6': 30.5,
+        }
+
+        response = self.client.post('/api/salvar_dados', json=payload)
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.get_json()['sensor_id'], 44204)
+        self.assertEqual(mock_salvar.call_args.args[0]['senderAddress'], 44204)
+        self.assertEqual(mock_salvar.call_args.args[0]['rssi'], None)
+        self.assertEqual(mock_salvar.call_args.args[1], 'gateway_e32_01')
+
+    @patch('models.medicao.MedicaoModel.salvar', return_value=True)
+    def test_limites_uint16_validos(self, mock_salvar):
+        for sensor_id in (1, 65534):
+            with self.subTest(sensor_id=sensor_id):
+                response = self.client.post('/api/salvar_dados', json={'senderAddress': sensor_id})
+                self.assertEqual(response.status_code, 201)
+
+        self.assertEqual(mock_salvar.call_count, 2)
+
+    def test_limites_uint16_reservados_ou_invalidos_sao_rejeitados(self):
+        for sensor_id in (0, 65535, 65536, 70000, -1, '44204', True):
+            with self.subTest(sensor_id=sensor_id):
+                response = self.client.post('/api/salvar_dados', json={'senderAddress': sensor_id})
+                self.assertEqual(response.status_code, 400)
+
+    @patch('models.medicao.MedicaoModel.salvar', return_value=True)
+    def test_gateway_e220_legado_usa_fallback_e_rssi_numerico(self, mock_salvar):
+        response = self.client.post('/api/salvar_dados', json={
+            'senderAddress': 12345,
+            'rssi': -87.5,
+            'temp_ds1': 28.4,
+        })
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.get_json()['gateway_id'], DEFAULT_GATEWAY_ID)
+        self.assertEqual(mock_salvar.call_args.args[1], DEFAULT_GATEWAY_ID)
+        self.assertEqual(mock_salvar.call_args.args[0]['rssi'], -87.5)
+
+    @patch('models.medicao.MedicaoModel.salvar', return_value=True)
+    def test_rssi_ausente_e_aceito_como_nulo(self, mock_salvar):
+        response = self.client.post('/api/salvar_dados', json={
+            'gateway_id': 'gateway_e32_01',
+            'senderAddress': 44204,
+        })
+
+        self.assertEqual(response.status_code, 201)
+        self.assertIsNone(mock_salvar.call_args.args[0].get('rssi'))
+
+    def test_gateway_rssi_e_temperatura_invalidos_sao_rejeitados(self):
+        invalid_payloads = (
+            {'gateway_id': '', 'senderAddress': 44204},
+            {'gateway_id': 'inv@lido!', 'senderAddress': 44204},
+            {'senderAddress': 44204, 'rssi': '-87.5'},
+            {'senderAddress': 44204, 'temp_ds1': '28.4'},
+        )
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                self.assertEqual(self.client.post('/api/salvar_dados', json=payload).status_code, 400)
+
+
+class TestLeiturasGet(unittest.TestCase):
+    def setUp(self):
+        self.client = app.test_client()
+
+    @patch('models.medicao.MedicaoModel.get_por_periodo', return_value=[])
+    def test_periodo_repassa_filtros_sensor_gateway_e_datas(self, mock_periodo):
+        response = self.client.get(
+            '/api/medicoes?inicio=2026-07-10T10:00:00&fim=2026-07-10T11:00:00'
+            '&sensor_id=44204&gateway_id=gateway_e32_01'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mock_periodo.assert_called_once_with(
+            '2026-07-10T10:00:00', '2026-07-10T11:00:00', '44204', 'gateway_e32_01'
+        )
+
+    @patch('models.medicao.MedicaoModel.get_recentes')
+    def test_recentes_retorna_colecao_global_e_filtro_por_sensor(self, mock_recentes):
+        mock_recentes.return_value = [
+            {'sensor_id': 12345, 'gateway_id': 'gateway_e220_01'},
+            {'sensor_id': 44204, 'gateway_id': 'gateway_e32_01'},
+        ]
+        response = self.client.get('/api/medicoes/recentes')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.get_json()), 2)
+        mock_recentes.assert_called_once_with(None, None)
+
+        mock_recentes.reset_mock()
+        mock_recentes.return_value = [{'sensor_id': 44204, 'gateway_id': 'gateway_e32_01'}]
+        response = self.client.get('/api/medicoes/recentes?sensor_id=44204&gateway_id=gateway_e32_01')
+        self.assertEqual(response.status_code, 200)
+        mock_recentes.assert_called_once_with('44204', 'gateway_e32_01')
+
+    @patch('routes.medicoes.mysql.connector.connect')
+    def test_status_retorna_um_item_por_sensor(self, mock_connect):
+        cursor = MagicMock()
+        cursor.fetchall.return_value = [
+            {'sensor_id': 12345, 'ultima_transmissao': datetime.now()},
+            {'sensor_id': 44204, 'ultima_transmissao': datetime.now() - timedelta(hours=4)},
+        ]
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        connection.is_connected.return_value = True
+        mock_connect.return_value = connection
+
+        response = self.client.get('/api/status')
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual({item['sensor_id'] for item in payload}, {12345, 44204})
+        self.assertEqual(set(payload[0]), {'sensor_id', 'ultima_transmissao', 'status', 'minutos_desde_ultima'})
+
+
+class TestPersistenceAndSchema(unittest.TestCase):
+    @patch('models.medicao.mysql.connector.connect')
+    def test_salvar_faz_rollback_em_erro_de_insert(self, mock_connect):
+        cursor = MagicMock()
+        cursor.execute.side_effect = RuntimeError('database failure')
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        connection.is_connected.return_value = True
+        mock_connect.return_value = connection
+
+        with self.assertRaisesRegex(RuntimeError, 'database failure'):
+            MedicaoModel.salvar({'senderAddress': 44204}, 'gateway_e32_01')
+
+        connection.rollback.assert_called_once()
+        cursor.close.assert_called_once()
+        connection.close.assert_called_once()
+
+    @patch('models.medicao.mysql.connector.connect')
+    def test_consultas_usam_data_hora_e_filtros_parametrizados(self, mock_connect):
+        cursor = MagicMock()
+        cursor.fetchall.return_value = []
+        connection = MagicMock()
+        connection.cursor.return_value = cursor
+        connection.is_connected.return_value = True
+        mock_connect.return_value = connection
+
+        MedicaoModel.get_por_periodo('2026-07-10T10:00:00', '2026-07-10T11:00:00', 44204, 'gateway_e32_01')
+        sql, params = cursor.execute.call_args.args
+        self.assertIn('data_hora BETWEEN %s AND %s', sql)
+        self.assertIn('sensor_id = %s', sql)
+        self.assertIn('gateway_id = %s', sql)
+        self.assertEqual(params, ('2026-07-10T10:00:00', '2026-07-10T11:00:00', 44204, 'gateway_e32_01'))
+
+        cursor.reset_mock()
+        MedicaoModel.get_recentes(44204, 'gateway_e32_01')
+        sql, params = cursor.execute.call_args.args
+        self.assertIn('MAX(data_hora)', sql)
+        self.assertEqual(params, (44204, 'gateway_e32_01', 44204, 'gateway_e32_01'))
+
+    def test_schema_e_migracao_aceitam_uint16(self):
+        backend_dir = Path(__file__).resolve().parents[1]
+        schema = (backend_dir / 'database' / 'schema.sql').read_text(encoding='utf-8')
+        migration = (backend_dir / 'database' / 'migrations' / '002_expand_sensor_id_to_uint16.sql').read_text(encoding='utf-8')
+
+        self.assertIn('sensor_id SMALLINT UNSIGNED NOT NULL', schema)
+        self.assertIn('MODIFY COLUMN sensor_id SMALLINT UNSIGNED NOT NULL', migration)
+
+
+if __name__ == '__main__':
+    unittest.main()

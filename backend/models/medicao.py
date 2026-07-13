@@ -6,9 +6,10 @@ class MedicaoModel:
     SENSOR_COLUMNS = ('ds1', 'ds2', 'ds3', 'ds4', 'ds5', 'ds6')
 
     @staticmethod
-    def salvar(data):
-        # Ordem: id, s1, s2, s3, s4, s5, s6, rssi
+    def salvar(data, gateway_id):
+        # Ordem: gateway_id, id(sensor_id), s1, s2, s3, s4, s5, s6, rssi
         values = (
+            gateway_id,
             data.get('senderAddress'),
             data.get('temp_ds1'), data.get('temp_ds2'),
             data.get('temp_ds3'), data.get('temp_ds4'),
@@ -21,15 +22,17 @@ class MedicaoModel:
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
-            
-            sql = """INSERT INTO medicoes 
-                     (sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi) 
-                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
-            
+
+            sql = """INSERT INTO medicoes
+                     (gateway_id, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi)
+                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
+
             cursor.execute(sql, values)
             conn.commit()
             return True
         except Exception as e:
+            if conn and conn.is_connected():
+                conn.rollback()
             raise e
         finally:
             if conn and conn.is_connected():
@@ -46,29 +49,40 @@ class MedicaoModel:
             created_at_str = val.isoformat()
         else:
             created_at_str = str(val)
-            
+
         return {
             "id": row[0],
             "data_hora": created_at_str,
-            "sensor_id": row[2],
-            "temp_ds1": row[3],
-            "temp_ds2": row[4],
-            "temp_ds3": row[5],
-            "temp_ds4": row[6],
-            "temp_ds5": row[7],
-            "temp_ds6": row[8],
-            "rssi": row[9]
+            "gateway_id": row[2],
+            "sensor_id": row[3],
+            "temp_ds1": row[4],
+            "temp_ds2": row[5],
+            "temp_ds3": row[6],
+            "temp_ds4": row[7],
+            "temp_ds5": row[8],
+            "temp_ds6": row[9],
+            "rssi": row[10]
         }
 
     @staticmethod
-    def get_por_sensor(sensor_id, limite=100):
+    def get_por_sensor(sensor_id, limite=100, gateway_id=None):
         conn = None
         cursor = None
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
-            sql = "SELECT id, created_at, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE sensor_id = %s ORDER BY created_at DESC LIMIT %s"
-            cursor.execute(sql, (sensor_id, int(limite)))
+
+            sql = "SELECT id, data_hora, gateway_id, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE sensor_id = %s"
+            params = [sensor_id]
+
+            if gateway_id:
+                sql += " AND gateway_id = %s"
+                params.append(gateway_id)
+
+            sql += " ORDER BY data_hora DESC LIMIT %s"
+            params.append(int(limite))
+
+            cursor.execute(sql, tuple(params))
             rows = cursor.fetchall()
             return [MedicaoModel._to_dict(row) for row in rows]
         except Exception as e:
@@ -79,14 +93,24 @@ class MedicaoModel:
                 conn.close()
 
     @staticmethod
-    def get_por_periodo(inicio, fim):
+    def get_por_periodo(inicio, fim, sensor_id=None, gateway_id=None):
         conn = None
         cursor = None
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
-            sql = "SELECT id, created_at, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE created_at BETWEEN %s AND %s ORDER BY created_at DESC"
-            cursor.execute(sql, (inicio, fim))
+            sql = "SELECT id, data_hora, gateway_id, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE data_hora BETWEEN %s AND %s"
+            params = [inicio, fim]
+
+            if sensor_id:
+                sql += " AND sensor_id = %s"
+                params.append(sensor_id)
+            if gateway_id:
+                sql += " AND gateway_id = %s"
+                params.append(gateway_id)
+
+            sql += " ORDER BY data_hora DESC"
+            cursor.execute(sql, tuple(params))
             rows = cursor.fetchall()
             return [MedicaoModel._to_dict(row) for row in rows]
         except Exception as e:
@@ -97,22 +121,39 @@ class MedicaoModel:
                 conn.close()
 
     @staticmethod
-    def get_recentes():
+    def get_recentes(sensor_id=None, gateway_id=None):
         conn = None
         cursor = None
         try:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor()
+
             sql = """
-                SELECT id, created_at, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi 
+                SELECT id, data_hora, gateway_id, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi
                 FROM medicoes m1
-                WHERE created_at = (
-                    SELECT MAX(created_at) 
-                    FROM medicoes m2 
+                WHERE data_hora = (
+                    SELECT MAX(data_hora)
+                    FROM medicoes m2
                     WHERE m1.sensor_id = m2.sensor_id
-                )
             """
-            cursor.execute(sql)
+            params = []
+            if sensor_id:
+                sql += " AND m2.sensor_id = %s"
+                params.append(sensor_id)
+            if gateway_id:
+                sql += " AND m2.gateway_id = %s"
+                params.append(gateway_id)
+
+            sql += ")"
+
+            if sensor_id:
+                sql += " AND m1.sensor_id = %s"
+                params.append(sensor_id)
+            if gateway_id:
+                sql += " AND m1.gateway_id = %s"
+                params.append(gateway_id)
+
+            cursor.execute(sql, tuple(params))
             rows = cursor.fetchall()
             return [MedicaoModel._to_dict(row) for row in rows]
         except Exception as e:
@@ -148,7 +189,7 @@ class MedicaoModel:
             params = []
 
             if inicio and fim:
-                sql += " WHERE created_at BETWEEN %s AND %s"
+                sql += " WHERE data_hora BETWEEN %s AND %s"
                 params.extend([inicio, fim])
 
             cursor.execute(sql, tuple(params))

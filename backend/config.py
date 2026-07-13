@@ -3,6 +3,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+DEFAULT_GATEWAY_ID = os.getenv('DEFAULT_GATEWAY_ID', 'gateway_legacy')
+
 DB_CONFIG = {
     'host':     os.getenv('MYSQLHOST'),
     'user':     os.getenv('MYSQLUSER'),
