@@ -24,7 +24,8 @@ void setup() {
   while (WiFi.status() != WL_CONNECTED) delay(500);
   
   e220.begin();
-  e220.setMode(MODE_2_WOR_RECEIVER);
+  // Receptor alimentado pela rede: escuta continua dispensa o duty-cycle do WOR
+  e220.setMode(MODE_0_NORMAL);
 }
 
 void loop() {
