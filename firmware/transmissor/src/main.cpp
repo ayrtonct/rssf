@@ -62,7 +62,8 @@ void setup() {
   e220.setConfiguration(configuration, WRITE_CFG_PWR_DWN_SAVE);
   c.close();
 
-  e220.setMode(MODE_1_WOR_TRANSMITTER);
+  // Modo normal: receptor fica em escuta continua, entao nao ha preambulo WOR a emitir
+  e220.setMode(MODE_0_NORMAL);
   
   // Coleta de dados dos 6 sensores DS18B20
   sensors.requestTemperatures();
