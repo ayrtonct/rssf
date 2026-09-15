@@ -1,6 +1,7 @@
 # models/medicao.py
 import mysql.connector
 from config import DB_CONFIG
+from identity import canonical_gateway_id, gateway_query_values
 
 class MedicaoModel:
     SENSOR_COLUMNS = ('ds1', 'ds2', 'ds3', 'ds4', 'ds5', 'ds6')
@@ -53,7 +54,7 @@ class MedicaoModel:
         return {
             "id": row[0],
             "data_hora": created_at_str,
-            "gateway_id": row[2],
+            "gateway_id": canonical_gateway_id(row[3], row[2]),
             "sensor_id": row[3],
             "temp_ds1": row[4],
             "temp_ds2": row[5],
@@ -75,9 +76,11 @@ class MedicaoModel:
             sql = "SELECT id, data_hora, gateway_id, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi FROM medicoes WHERE sensor_id = %s"
             params = [sensor_id]
 
-            if gateway_id:
-                sql += " AND gateway_id = %s"
-                params.append(gateway_id)
+            gateway_values = gateway_query_values(sensor_id, gateway_id)
+            if gateway_values:
+                placeholders = ", ".join(["%s"] * len(gateway_values))
+                sql += f" AND gateway_id IN ({placeholders})"
+                params.extend(gateway_values)
 
             sql += " ORDER BY data_hora DESC LIMIT %s"
             params.append(int(limite))
@@ -105,9 +108,11 @@ class MedicaoModel:
             if sensor_id:
                 sql += " AND sensor_id = %s"
                 params.append(sensor_id)
-            if gateway_id:
-                sql += " AND gateway_id = %s"
-                params.append(gateway_id)
+            gateway_values = gateway_query_values(sensor_id, gateway_id)
+            if gateway_values:
+                placeholders = ", ".join(["%s"] * len(gateway_values))
+                sql += f" AND gateway_id IN ({placeholders})"
+                params.extend(gateway_values)
 
             sql += " ORDER BY data_hora DESC"
             cursor.execute(sql, tuple(params))
@@ -129,33 +134,51 @@ class MedicaoModel:
             cursor = conn.cursor()
 
             sql = """
-                SELECT id, data_hora, gateway_id, sensor_id, temp_ds1, temp_ds2, temp_ds3, temp_ds4, temp_ds5, temp_ds6, rssi
+                SELECT m1.id, m1.data_hora, m1.gateway_id, m1.sensor_id,
+                       m1.temp_ds1, m1.temp_ds2, m1.temp_ds3,
+                       m1.temp_ds4, m1.temp_ds5, m1.temp_ds6, m1.rssi
                 FROM medicoes m1
-                WHERE data_hora = (
-                    SELECT MAX(data_hora)
-                    FROM medicoes m2
-                    WHERE m1.sensor_id = m2.sensor_id
+                INNER JOIN (
+                    SELECT gateway_id, sensor_id, MAX(data_hora) AS ultima_data_hora
+                    FROM medicoes
+                    WHERE 1 = 1
             """
             params = []
             if sensor_id:
-                sql += " AND m2.sensor_id = %s"
+                sql += " AND sensor_id = %s"
                 params.append(sensor_id)
-            if gateway_id:
-                sql += " AND m2.gateway_id = %s"
-                params.append(gateway_id)
+            gateway_values = gateway_query_values(sensor_id, gateway_id)
+            if gateway_values:
+                placeholders = ", ".join(["%s"] * len(gateway_values))
+                sql += f" AND gateway_id IN ({placeholders})"
+                params.extend(gateway_values)
 
-            sql += ")"
-
-            if sensor_id:
-                sql += " AND m1.sensor_id = %s"
-                params.append(sensor_id)
-            if gateway_id:
-                sql += " AND m1.gateway_id = %s"
-                params.append(gateway_id)
+            sql += """
+                    GROUP BY sensor_id, gateway_id
+                ) AS ultimas
+                  ON ultimas.gateway_id = m1.gateway_id
+                 AND ultimas.sensor_id = m1.sensor_id
+                 AND ultimas.ultima_data_hora = m1.data_hora
+                WHERE m1.id = (
+                    SELECT MAX(m3.id)
+                    FROM medicoes m3
+                    WHERE m3.gateway_id = m1.gateway_id
+                      AND m3.sensor_id = m1.sensor_id
+                      AND m3.data_hora = m1.data_hora
+                )
+                ORDER BY m1.sensor_id, m1.gateway_id
+            """
 
             cursor.execute(sql, tuple(params))
             rows = cursor.fetchall()
-            return [MedicaoModel._to_dict(row) for row in rows]
+            latest_by_point = {}
+            for row in rows:
+                item = MedicaoModel._to_dict(row)
+                key = (item['gateway_id'], str(item['sensor_id']))
+                current = latest_by_point.get(key)
+                if current is None or (item['data_hora'], item['id']) > (current['data_hora'], current['id']):
+                    latest_by_point[key] = item
+            return list(latest_by_point.values())
         except Exception as e:
             raise e
         finally:
@@ -164,7 +187,7 @@ class MedicaoModel:
                 conn.close()
 
     @staticmethod
-    def get_estatisticas_por_sensor(inicio=None, fim=None):
+    def get_estatisticas_por_sensor(inicio=None, fim=None, sensor_id=None, gateway_id=None):
         conn = None
         cursor = None
         try:
@@ -173,7 +196,10 @@ class MedicaoModel:
 
             def valid_temp_expr(sensor):
                 column = f"temp_{sensor}"
-                return f"CASE WHEN {column} IS NOT NULL AND {column} <> -127 THEN {column} END"
+                return (
+                    f"CASE WHEN {column} IS NOT NULL AND {column} <> -127 "
+                    f"AND NOT (sensor_id = 1 AND {column} = 85) THEN {column} END"
+                )
 
             aggregate_sql = ", ".join(
                 [
@@ -188,9 +214,20 @@ class MedicaoModel:
             sql = f"SELECT {aggregate_sql} FROM medicoes"
             params = []
 
+            conditions = []
             if inicio and fim:
-                sql += " WHERE data_hora BETWEEN %s AND %s"
+                conditions.append("data_hora BETWEEN %s AND %s")
                 params.extend([inicio, fim])
+            if sensor_id:
+                conditions.append("sensor_id = %s")
+                params.append(sensor_id)
+            gateway_values = gateway_query_values(sensor_id, gateway_id)
+            if gateway_values:
+                placeholders = ", ".join(["%s"] * len(gateway_values))
+                conditions.append(f"gateway_id IN ({placeholders})")
+                params.extend(gateway_values)
+            if conditions:
+                sql += " WHERE " + " AND ".join(conditions)
 
             cursor.execute(sql, tuple(params))
             row = cursor.fetchone() or {}
