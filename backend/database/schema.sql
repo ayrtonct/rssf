@@ -14,8 +14,6 @@ CREATE TABLE IF NOT EXISTS medicoes (
     temp_ds4 FLOAT,                                -- Temperatura Sensor 4
     temp_ds5 FLOAT,                                -- Temperatura Sensor 5 
     temp_ds6 FLOAT,                                -- Temperatura Sensor 6 
-    rssi FLOAT NULL                                -- Intensidade do sinal LoRa
+    rssi FLOAT NULL,                               -- Intensidade do sinal LoRa
+    INDEX idx_medicoes_latest_point (sensor_id, gateway_id, data_hora, id)
 );
-
--- 3. Criação de Índices
-CREATE INDEX idx_medicoes_sensor_gateway ON medicoes (sensor_id, gateway_id);
