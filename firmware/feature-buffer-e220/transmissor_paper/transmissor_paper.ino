@@ -18,8 +18,8 @@
 #define CHANNEL         0x0F
 
 // Endereco dedicado do receptor de laboratorio (ADDH/ADDL).
-#define LAB_RECEIVER_ADDH 0x00
-#define LAB_RECEIVER_ADDL 0x01
+#define LAB_RECEIVER_ADDH 0xA7
+#define LAB_RECEIVER_ADDL 0x68
 
 #define BUFFER_SIZE 16
 
