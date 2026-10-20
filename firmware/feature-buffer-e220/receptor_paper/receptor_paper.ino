@@ -58,6 +58,11 @@ void setup() {
   // Grava o canal no modulo em vez de confiar no que ja estava salvo nele
   ResponseStructContainer c = e220.getConfiguration();
   Serial.printf("[DEBUG] getConfiguration() status = %s\n", c.status.getResponseDescription().c_str());
+  if (c.status.code != E220_SUCCESS || c.data == nullptr) {
+    Serial.println("[ERROR] E220 nao respondeu a leitura de configuracao; verifique UART, AUX, M0/M1 e alimentacao.");
+    c.close();
+    return;
+  }
   Configuration configuration = *(Configuration*)c.data;
   Serial.printf("[DEBUG] canal atual = %d (esperado %d) | ADDH=%d ADDL=%d (esperado %d/%d, unicast) | AirDataRate=%s\n",
                 configuration.CHAN, CHANNEL, configuration.ADDH, configuration.ADDL, LAB_RECEIVER_ADDH, LAB_RECEIVER_ADDL,
@@ -70,6 +75,11 @@ void setup() {
     configuration.ADDL = LAB_RECEIVER_ADDL;
     ResponseStatus rs = e220.setConfiguration(configuration, WRITE_CFG_PWR_DWN_SAVE);
     Serial.printf("[DEBUG] setConfiguration() status = %s\n", rs.getResponseDescription().c_str());
+    if (rs.code != E220_SUCCESS) {
+      Serial.println("[ERROR] E220 rejeitou a configuracao de endereco/canal; receptor nao iniciou.");
+      c.close();
+      return;
+    }
   } else {
     Serial.println("[DEBUG] canal e endereco ja estavam corretos, nao precisou regravar");
   }
