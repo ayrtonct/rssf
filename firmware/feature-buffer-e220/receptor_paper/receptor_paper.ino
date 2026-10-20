@@ -58,7 +58,7 @@ void setup() {
   ResponseStructContainer c = e220.getConfiguration();
   Serial.printf("[DEBUG] getConfiguration() status = %s\n", c.status.getResponseDescription().c_str());
   Configuration configuration = *(Configuration*)c.data;
-  Serial.printf("[DEBUG] canal atual = %d (esperado %d) | ADDH=%d ADDL=%d (esperado %d/%d, broadcast) | AirDataRate=%s\n",
+  Serial.printf("[DEBUG] canal atual = %d (esperado %d) | ADDH=%d ADDL=%d (esperado %d/%d, unicast) | AirDataRate=%s\n",
                 configuration.CHAN, CHANNEL, configuration.ADDH, configuration.ADDL, LAB_RECEIVER_ADDH, LAB_RECEIVER_ADDL,
                 configuration.SPED.getAirDataRateDescription().c_str());
   // O transmissor usa sendFixedMessage para o endereco dedicado abaixo; o E220
