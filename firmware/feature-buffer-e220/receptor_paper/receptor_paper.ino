@@ -18,6 +18,10 @@
 // Deve ser identico a LAB_GATEWAY_ID no backend.
 const char* LAB_GATEWAY_ID = "gateway_lab_01";
 
+// Endereco E220 dedicado; precisa coincidir com o destino do transmissor.
+#define LAB_RECEIVER_ADDH 0xA7
+#define LAB_RECEIVER_ADDL 0x68
+
 // Precisa bater com o CHANNEL do transmissor: ele retuna pra esse canal so
 // durante o envio (sendFixedMessage), entao o receptor tem que estar
 // escutando nele - nao basta usar a config default/residual do modulo.
@@ -54,16 +58,15 @@ void setup() {
   ResponseStructContainer c = e220.getConfiguration();
   Serial.printf("[DEBUG] getConfiguration() status = %s\n", c.status.getResponseDescription().c_str());
   Configuration configuration = *(Configuration*)c.data;
-  Serial.printf("[DEBUG] canal atual = %d (esperado %d) | ADDH=%d ADDL=%d (esperado %d/%d, broadcast) | AirDataRate=%s\n",
-                configuration.CHAN, CHANNEL, configuration.ADDH, configuration.ADDL, BROADCAST_ADDRESS, BROADCAST_ADDRESS,
+  Serial.printf("[DEBUG] canal atual = %d (esperado %d) | ADDH=%d ADDL=%d (esperado %d/%d, unicast) | AirDataRate=%s\n",
+                configuration.CHAN, CHANNEL, configuration.ADDH, configuration.ADDL, LAB_RECEIVER_ADDH, LAB_RECEIVER_ADDL,
                 configuration.SPED.getAirDataRateDescription().c_str());
-  // O transmissor manda em broadcast (sendFixedMessage com BROADCAST_ADDRESS),
-  // entao o receptor so recebe se o proprio endereco dele tambem for broadcast -
-  // senao o modulo filtra e descarta o pacote mesmo estando no canal certo.
-  if (configuration.CHAN != CHANNEL || configuration.ADDH != BROADCAST_ADDRESS || configuration.ADDL != BROADCAST_ADDRESS) {
+  // O transmissor usa sendFixedMessage para o endereco dedicado abaixo; o E220
+  // filtra pacotes destinados a outros receptores.
+  if (configuration.CHAN != CHANNEL || configuration.ADDH != LAB_RECEIVER_ADDH || configuration.ADDL != LAB_RECEIVER_ADDL) {
     configuration.CHAN = CHANNEL;
-    configuration.ADDH = BROADCAST_ADDRESS;
-    configuration.ADDL = BROADCAST_ADDRESS;
+    configuration.ADDH = LAB_RECEIVER_ADDH;
+    configuration.ADDL = LAB_RECEIVER_ADDL;
     ResponseStatus rs = e220.setConfiguration(configuration, WRITE_CFG_PWR_DWN_SAVE);
     Serial.printf("[DEBUG] setConfiguration() status = %s\n", rs.getResponseDescription().c_str());
   } else {
