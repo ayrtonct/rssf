@@ -6,10 +6,10 @@
 #include <DallasTemperature.h>
 
 #define SAMPLE_TIME     1800000 // 30 min em ms (o deep sleep multiplica por 1000)
-// Pinagem da PCB RSSF r0.3. A biblioteca recebe primeiro o GPIO RX
-// do ESP32 (ligado ao TXD do E220), depois o GPIO TX do ESP32.
-#define RADIO_TXD_ESP_RX_PIN 17
-#define RADIO_RXD_ESP_TX_PIN 16
+// Pinagem conforme o commit do Kalebe: ESP32 TX GPIO17 -> E220 RXD;
+// E220 TXD -> ESP32 RX GPIO16. Primeiro argumento da biblioteca = TX, segundo = RX.
+#define ESP32_TX_PIN 17
+#define ESP32_RX_PIN 16
 #define AUX_PIN              5
 #define M0_PIN               2
 #define M1_PIN               4
@@ -60,7 +60,7 @@ DallasTemperature sensors(&oneWire);
 
 // Primeiro parametro e o pino ligado ao TX do modulo (RX do ESP32); inverter
 // os dois faz a UART funcionar so num sentido.
-LoRa_E220 e220((byte)RADIO_TXD_ESP_RX_PIN, (byte)RADIO_RXD_ESP_TX_PIN,
+LoRa_E220 e220((byte)ESP32_TX_PIN, (byte)ESP32_RX_PIN,
                  &Serial2, (byte)AUX_PIN, (byte)M0_PIN, (byte)M1_PIN,
                  UART_BPS_RATE_9600, SERIAL_8N1);
 
