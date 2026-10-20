@@ -46,10 +46,11 @@ const char* serverURL = "https://rssf-production.up.railway.app/api/salvar_dados
 
 void setup() {
   Serial.begin(115200);
-  WiFi.begin("LSP-UEMA", "Asfaltosolos123");
-  while (WiFi.status() != WL_CONNECTED) delay(500);
-
   Serial.println("[DEBUG] setup() iniciou");
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin("LSP-UEMA", "Asfaltosolos123");
+  Serial.printf("[WiFi] tentativa iniciada; status=%d. Inicializando E220 sem aguardar rede.\\n", WiFi.status());
 
   bool beginOk = e220.begin();
   Serial.printf("[DEBUG] e220.begin() = %s\n", beginOk ? "OK" : "FALHOU");
@@ -117,6 +118,12 @@ void loop() {
           String key = "temp_ds" + String(i + 1);
           m[key] = packet.subpacket[j].digTemperature[i] / 128.0f;
         }
+      }
+
+      if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("[HTTP] Pacote LoRa recebido, mas Wi-Fi indisponivel; lote nao foi enviado ao backend.");
+        rc.close();
+        return;
       }
 
       HTTPClient http;
