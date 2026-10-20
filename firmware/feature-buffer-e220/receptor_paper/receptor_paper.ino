@@ -7,10 +7,10 @@
 
 // Pinagem conforme o commit do Kalebe: ESP32 TX GPIO17 -> E220 RXD;
 // E220 TXD -> ESP32 RX GPIO16. Primeiro argumento da biblioteca = TX, segundo = RX.
-#define ESP32_TX_PIN 17
-#define ESP32_RX_PIN 16
-#define AUX_PIN 5
-#define M0_PIN 2
+#define ESP32_TX_PIN 16
+#define ESP32_RX_PIN 17
+#define AUX_PIN 22
+#define M0_PIN 19
 #define M1_PIN 4
 
 #define BUFFER_SIZE 16
@@ -49,7 +49,7 @@ void setup() {
   Serial.println("[DEBUG] setup() iniciou");
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
-  WiFi.begin("LSP-UEMA", "Asfaltosolos123");
+  WiFi.begin("iPhone de Ayrton ", "12345678");
   Serial.printf("[WiFi] tentativa iniciada; status=%d. Inicializando E220 sem aguardar rede.\n", WiFi.status());
 
   bool beginOk = e220.begin();
@@ -118,7 +118,7 @@ void loop() {
       }
 
       // Tratamento de dados da temperatura - no pacote, a temperatura vem como int16_t, representada
-      // em quantidades de frações de 1/128 graus Celsius
+      // em quantidades de fra��es de 1/128 graus Celsius
       JsonArray medicoes = doc["medicoes"].to<JsonArray>();
       for (int j = 0; j < qntd; j++) {
         JsonObject m = medicoes.add<JsonObject>();
