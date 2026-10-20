@@ -50,7 +50,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.begin("LSP-UEMA", "Asfaltosolos123");
-  Serial.printf("[WiFi] tentativa iniciada; status=%d. Inicializando E220 sem aguardar rede.\\n", WiFi.status());
+  Serial.printf("[WiFi] tentativa iniciada; status=%d. Inicializando E220 sem aguardar rede.\n", WiFi.status());
 
   bool beginOk = e220.begin();
   Serial.printf("[DEBUG] e220.begin() = %s\n", beginOk ? "OK" : "FALHOU");
