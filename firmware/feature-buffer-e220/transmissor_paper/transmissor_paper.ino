@@ -17,6 +17,10 @@
 
 #define CHANNEL         0x0F
 
+// Endereco dedicado do receptor de laboratorio (ADDH/ADDL).
+#define LAB_RECEIVER_ADDH 0x00
+#define LAB_RECEIVER_ADDL 0x01
+
 #define BUFFER_SIZE 16
 
 // Ensaio de laboratorio: envio inicial e, depois, lotes de 16 ciclos.
@@ -101,7 +105,7 @@ bool transmitPacket() {
   }
   e220.setMode(MODE_0_NORMAL);
   ResponseStatus result = e220.sendFixedMessage(
-      BROADCAST_ADDRESS, BROADCAST_ADDRESS, CHANNEL, &packet, sizeof(Packet));
+      LAB_RECEIVER_ADDH, LAB_RECEIVER_ADDL, CHANNEL, &packet, sizeof(Packet));
   Serial.printf("[TX] Resultado local: %s; confira HTTP 201 no receptor e o dashboard.\n",
                 result.getResponseDescription().c_str());
   return result.code == E220_SUCCESS;
