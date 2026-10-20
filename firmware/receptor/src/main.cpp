@@ -23,35 +23,7 @@ void setup() {
   WiFi.begin("LSP/UEMA", "Asfaltosolos23");
   while (WiFi.status() != WL_CONNECTED) delay(500);
   
-  if (!e220.begin()) {
-    Serial.println("[RX] Falha ao iniciar E220.");
-    return;
-  }
-
-  // Endereco dedicado ao transmissor de laboratorio; nao aceita broadcast.
-  const byte receiverAddH = 0x00;
-  const byte receiverAddL = 0x01;
-  const byte labChannel = 0x0F;
-  ResponseStructContainer c = e220.getConfiguration();
-  if (c.status.code != E220_SUCCESS || c.data == nullptr) {
-    Serial.println("[RX] Falha ao ler configuracao E220.");
-    c.close();
-    return;
-  }
-  Configuration configuration = *(Configuration*)c.data;
-  c.close();
-  if (configuration.CHAN != labChannel || configuration.ADDH != receiverAddH || configuration.ADDL != receiverAddL) {
-    configuration.CHAN = labChannel;
-    configuration.ADDH = receiverAddH;
-    configuration.ADDL = receiverAddL;
-    ResponseStatus status = e220.setConfiguration(configuration, WRITE_CFG_PWR_DWN_SAVE);
-    Serial.printf("[RX] Configuracao de destino=%02X:%02X canal=%u: %s\\n",
-                  receiverAddH, receiverAddL, labChannel, status.getResponseDescription().c_str());
-    if (status.code != E220_SUCCESS) return;
-  } else {
-    Serial.printf("[RX] Endereco dedicado=%02X:%02X canal=%u\\n", receiverAddH, receiverAddL, labChannel);
-  }
-
+  e220.begin();
   // Receptor alimentado pela rede: escuta continua dispensa o duty-cycle do WOR
   e220.setMode(MODE_0_NORMAL);
 }
