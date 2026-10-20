@@ -5,10 +5,10 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-// Pinagem da PCB RSSF r0.3. Primeiro argumento da biblioteca = ESP32 RX
-// ligado ao TXD do E220; segundo = ESP32 TX ligado ao RXD do E220.
-#define RADIO_TXD_ESP_RX_PIN 17
-#define RADIO_RXD_ESP_TX_PIN 16
+// Pinagem conforme o commit do Kalebe: ESP32 TX GPIO17 -> E220 RXD;
+// E220 TXD -> ESP32 RX GPIO16. Primeiro argumento da biblioteca = TX, segundo = RX.
+#define ESP32_TX_PIN 17
+#define ESP32_RX_PIN 16
 #define AUX_PIN 5
 #define M0_PIN 2
 #define M1_PIN 4
@@ -39,7 +39,7 @@ struct __attribute__((__packed__)) Packet {
   SubPacket subpacket[BUFFER_SIZE];
 };
 
-LoRa_E220 e220((byte)RADIO_TXD_ESP_RX_PIN, (byte)RADIO_RXD_ESP_TX_PIN,
+LoRa_E220 e220((byte)ESP32_TX_PIN, (byte)ESP32_RX_PIN,
                  &Serial2, (byte)AUX_PIN, (byte)M0_PIN, (byte)M1_PIN,
                  UART_BPS_RATE_9600, SERIAL_8N1);
 const char* serverURL = "https://rssf-production.up.railway.app/api/salvar_dados";
@@ -58,6 +58,11 @@ void setup() {
   // Grava o canal no modulo em vez de confiar no que ja estava salvo nele
   ResponseStructContainer c = e220.getConfiguration();
   Serial.printf("[DEBUG] getConfiguration() status = %s\n", c.status.getResponseDescription().c_str());
+  if (c.status.code != E220_SUCCESS || c.data == nullptr) {
+    Serial.println("[ERROR] E220 nao respondeu a leitura de configuracao; verifique UART, AUX, M0/M1 e alimentacao.");
+    c.close();
+    return;
+  }
   Configuration configuration = *(Configuration*)c.data;
   Serial.printf("[DEBUG] canal atual = %d (esperado %d) | ADDH=%d ADDL=%d (esperado %d/%d, unicast) | AirDataRate=%s\n",
                 configuration.CHAN, CHANNEL, configuration.ADDH, configuration.ADDL, LAB_RECEIVER_ADDH, LAB_RECEIVER_ADDL,
@@ -70,6 +75,11 @@ void setup() {
     configuration.ADDL = LAB_RECEIVER_ADDL;
     ResponseStatus rs = e220.setConfiguration(configuration, WRITE_CFG_PWR_DWN_SAVE);
     Serial.printf("[DEBUG] setConfiguration() status = %s\n", rs.getResponseDescription().c_str());
+    if (rs.code != E220_SUCCESS) {
+      Serial.println("[ERROR] E220 rejeitou a configuracao de endereco/canal; receptor nao iniciou.");
+      c.close();
+      return;
+    }
   } else {
     Serial.println("[DEBUG] canal e endereco ja estavam corretos, nao precisou regravar");
   }
