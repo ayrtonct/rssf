@@ -4,6 +4,7 @@
 #include <LoRa_E220.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include "driver/gpio.h"
 
 #define SAMPLE_TIME     1800000 // 30 min em ms (o deep sleep multiplica por 1000)
 // Pinagem conforme o commit do Kalebe: ESP32 TX GPIO17 -> E220 RXD;
@@ -66,6 +67,10 @@ LoRa_E220 e220((byte)ESP32_TX_PIN, (byte)ESP32_RX_PIN,
 
 // Sucesso aqui confirma somente a operacao local do radio, nao o POST HTTP.
 bool transmitPacket() {
+  // Solta a trava do sleep para o e220.begin() conseguir mudar o modo do radio.
+  gpio_hold_dis((gpio_num_t)M0_PIN);
+  gpio_hold_dis((gpio_num_t)M1_PIN);
+
   if (!e220.begin()) {
     Serial.println("[TX] Falha ao iniciar E220.");
     return false;
@@ -152,6 +157,16 @@ void setup() {
     e220.setMode(MODE_3_SLEEP);
   }
   Serial.flush();
+
+  // No deep sleep o ESP32 solta os pinos, e o M0 caia para 0 V (E220 no modo 2,
+  // recepcao WOR). Trava M0 e M1 em nivel alto para o E220 ficar em sleep (modo 3).
+  pinMode(M0_PIN, OUTPUT);
+  digitalWrite(M0_PIN, HIGH);
+  pinMode(M1_PIN, OUTPUT);
+  digitalWrite(M1_PIN, HIGH);
+  gpio_hold_en((gpio_num_t)M0_PIN);
+  gpio_hold_en((gpio_num_t)M1_PIN);
+  gpio_deep_sleep_hold_en();
 
   esp_sleep_enable_timer_wakeup((uint64_t)SAMPLE_TIME * 1000ULL);
   esp_deep_sleep_start();
