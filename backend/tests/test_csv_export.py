@@ -20,8 +20,8 @@ def test_csv_streams_all_raw_readings_and_closes_connection():
     assert len(parsed) == 1202
     assert parsed[1][0] == '1' and parsed[-1][0] == '1201'
     assert parsed[1][2:6] == ['85', '-127', '30.125', '']
-    assert 'America/Fortaleza' in parsed[0][1]
-    assert parsed[1][1] == '2026-04-10 12:00:00-03:00'
+    assert parsed[0][1] == 'Data/Hora'
+    assert parsed[1][1] == '2026-04-10 12:00:00'
     sql, params = cursor.execute.call_args.args
     assert 'LIMIT' not in sql.upper()
     assert params == (1, 'gateway_node_1', 'gateway_legacy')

@@ -263,13 +263,13 @@ def export_csv():
             buffer = io.StringIO(newline='')
             writer = csv.writer(buffer, delimiter=';', lineterminator='\r\n')
             try:
-                writer.writerow(['ID', 'Data/Hora (America/Fortaleza, UTC-03:00)',
+                writer.writerow(['ID', 'Data/Hora',
                                  'DS1', 'DS2', 'DS3', 'DS4', 'DS5', 'DS6', 'RSSI'])
                 yield '\ufeff' + buffer.getvalue()
                 buffer.seek(0); buffer.truncate(0)
                 for row in cursor:
                     local_time = database_datetime(row[1]) if row[1] else None
-                    writer.writerow([row[0], local_time.isoformat(sep=' ') if local_time else '', *row[2:]])
+                    writer.writerow([row[0], local_time.strftime('%Y-%m-%d %H:%M:%S') if local_time else '', *row[2:]])
                     yield buffer.getvalue()
                     buffer.seek(0); buffer.truncate(0)
             finally:
