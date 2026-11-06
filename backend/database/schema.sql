@@ -5,7 +5,7 @@ USE rssf;
 -- 2. Criação da Tabela de Medições
 CREATE TABLE IF NOT EXISTS medicoes (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    data_hora TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Registro automático de data e hora
+    data_hora DATETIME DEFAULT CURRENT_TIMESTAMP, -- Sao Luis; conexao usa time_zone=-03:00
     gateway_id VARCHAR(64) NOT NULL,               -- Identificador do gateway
     sensor_id SMALLINT UNSIGNED NOT NULL,          -- ID uint16_t do transmissor
     temp_ds1 FLOAT,                                -- Temperatura Sensor 1

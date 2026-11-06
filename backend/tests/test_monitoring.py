@@ -55,7 +55,7 @@ class MonitoringTests(unittest.TestCase):
             self.assertEqual(self.client.get('/api/medicoes/estatisticas?' + query).status_code, 400)
         stats.assert_not_called()
         self.client.get('/api/medicoes/estatisticas', query_string={'inicio': '2026-10-19T12:00:00-03:00', 'fim': '2026-10-19T13:00:00-03:00'})
-        self.assertEqual(stats.call_args.args[:2], (datetime(2026, 10, 19, 15), datetime(2026, 10, 19, 16)))
+        self.assertEqual(stats.call_args.args[:2], (datetime(2026, 10, 19, 12), datetime(2026, 10, 19, 13)))
 
     @patch('models.medicao.mysql.connector.connect')
     def test_unconfigured_batch_and_wrong_gateway_never_write(self, connect):

@@ -4,7 +4,7 @@ from datetime import timedelta
 import mysql.connector
 from config import DB_CONFIG
 from identity import canonical_gateway_id, gateway_query_values
-from monitoring import iso_utc, point_profile
+from monitoring import database_iso_utc, point_profile
 
 class MedicaoModel:
     SENSOR_COLUMNS = ('ds1', 'ds2', 'ds3', 'ds4', 'ds5', 'ds6')
@@ -82,7 +82,7 @@ class MedicaoModel:
 
     @staticmethod
     def _to_dict(row):
-        created_at_str = iso_utc(row[1])
+        created_at_str = database_iso_utc(row[1])
         profile = point_profile(row[3], canonical_gateway_id(row[3], row[2]))
         temperatures = (None, None, None, None, None, None) if not profile['has_sensors'] else row[4:10]
 
@@ -319,7 +319,7 @@ class MedicaoModel:
                 tuple([*params, first, width]))
             rows = cursor.fetchall()
             for row in rows:
-                row['data_hora'] = iso_utc(row['data_hora'])
+                row['data_hora'] = database_iso_utc(row['data_hora'])
                 row['sensor_id'] = sensor_id
                 row['gateway_id'] = gateway_id
                 for key in [*(f'temp_{s}' for s in MedicaoModel.SENSOR_COLUMNS), 'rssi']:

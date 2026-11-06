@@ -149,7 +149,7 @@ class TestLeiturasGet(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         mock_periodo.assert_called_once_with(
-            datetime(2026, 7, 10, 10), datetime(2026, 7, 10, 11), '44204', 'gateway_node_2'
+            datetime(2026, 7, 10, 7), datetime(2026, 7, 10, 8), '44204', 'gateway_node_2'
         )
 
     @patch('models.medicao.MedicaoModel.get_recentes')

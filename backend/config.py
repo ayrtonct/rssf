@@ -13,8 +13,8 @@ DB_CONFIG = {
     'database': os.getenv('MYSQLDATABASE'),
     'port':     int(os.getenv('MYSQLPORT', 3306)),
     'use_pure': True,
-    # TIMESTAMP is converted by MySQL on read/write; no historical rewrite.
-    'time_zone': '+00:00',
+    # DATETIME stores Sao Luis wall time; CURRENT_TIMESTAMP must use the same zone.
+    'time_zone': '-03:00',
     'connection_timeout': 5,
 }
 

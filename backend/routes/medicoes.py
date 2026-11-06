@@ -3,11 +3,16 @@ import re
 from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify, request, current_app
+from flask import Response, stream_with_context
+import csv
+import io
+import mysql.connector
 
-from config import DEFAULT_GATEWAY_ID
-from identity import canonical_gateway_id
+from config import DEFAULT_GATEWAY_ID, DB_CONFIG
+import config
+from identity import canonical_gateway_id, gateway_query_values
 from models.medicao import MedicaoModel
-from monitoring import point_profile, status_for, utc_datetime, iso_utc
+from monitoring import point_profile, status_for, utc_datetime, iso_utc, database_datetime, database_filter
 
 medicoes_bp = Blueprint('medicoes', __name__)
 
@@ -30,7 +35,7 @@ def date_range():
         raise ValueError('Datas invalidas') from None
     if start > end:
         raise ValueError('Inicio deve ser anterior ao fim')
-    return start.replace(tzinfo=None), end.replace(tzinfo=None)
+    return database_filter(start), database_filter(end)
 
 
 def is_valid_gateway_id(value):
@@ -72,7 +77,7 @@ def api_salvar_dados():
             return jsonify({'success': False, 'error': 'rssi inválido'}), 400
 
         if 'medicoes' in data:
-            if not laboratory:
+            if not laboratory or raw_gateway != config.LAB_GATEWAY_ID:
                 return jsonify({'success': False, 'error': 'Lotes exigem um ponto de laboratorio configurado'}), 400
             medicoes = data['medicoes']
             if not isinstance(medicoes, list) or not 1 <= len(medicoes) <= 16:
@@ -214,3 +219,64 @@ def get_history():
     except Exception:
         current_app.logger.exception('Falha ao consultar historico')
         return jsonify({'error': 'Nao foi possivel consultar o historico'}), 500
+
+
+@medicoes_bp.route('/api/medicoes/csv', methods=['GET'])
+def export_csv():
+    try:
+        sensor_id = request.args.get('sensor_id', type=int)
+        gateway_id = request.args.get('gateway_id')
+        if not sensor_id or not is_valid_gateway_id(gateway_id):
+            raise ValueError('Informe sensor_id e gateway_id do ponto')
+        start, end = date_range()
+        gateways = gateway_query_values(sensor_id, gateway_id)
+        if not gateways:
+            raise ValueError('Gateway invalido para este ponto')
+        conn = mysql.connector.connect(**DB_CONFIG)
+        try:
+            cursor = conn.cursor(buffered=False)
+        except Exception:
+            conn.close()
+            raise
+
+        def close_export():
+            # An interrupted unbuffered cursor may report unread results on close.
+            try:
+                cursor.close()
+            finally:
+                conn.close()
+        where = 'sensor_id = %s AND gateway_id IN (' + ','.join(['%s'] * len(gateways)) + ')'
+        params = [sensor_id, *gateways]
+        if start is not None:
+            where += ' AND data_hora BETWEEN %s AND %s'
+            params.extend([start, end])
+        try:
+            cursor.execute('SELECT id, data_hora, temp_ds1, temp_ds2, temp_ds3, temp_ds4, '
+                           'temp_ds5, temp_ds6, rssi FROM medicoes WHERE ' + where +
+                           ' ORDER BY data_hora, id', tuple(params))
+        except Exception:
+            close_export()
+            raise
+
+        @stream_with_context
+        def generate():
+            buffer = io.StringIO(newline='')
+            writer = csv.writer(buffer, delimiter=';', lineterminator='\r\n')
+            try:
+                writer.writerow(['ID', 'Data/Hora (America/Fortaleza, UTC-03:00)',
+                                 'DS1', 'DS2', 'DS3', 'DS4', 'DS5', 'DS6', 'RSSI'])
+                yield '\ufeff' + buffer.getvalue()
+                buffer.seek(0); buffer.truncate(0)
+                for row in cursor:
+                    local_time = database_datetime(row[1]) if row[1] else None
+                    writer.writerow([row[0], local_time.isoformat(sep=' ') if local_time else '', *row[2:]])
+                    yield buffer.getvalue()
+                    buffer.seek(0); buffer.truncate(0)
+            finally:
+                close_export()
+        return Response(generate(), content_type='text/csv; charset=utf-8')
+    except ValueError as error:
+        return jsonify({'error': str(error)}), 400
+    except Exception:
+        current_app.logger.exception('Falha ao exportar medicoes')
+        return jsonify({'error': 'Nao foi possivel exportar as medicoes'}), 500

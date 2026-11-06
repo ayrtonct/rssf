@@ -1,5 +1,6 @@
 """Point profiles and UTC status shared by all dashboard endpoints."""
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import config
 from identity import NODE_GATEWAYS
@@ -17,6 +18,33 @@ def utc_datetime(value):
 
 def iso_utc(value):
     return utc_datetime(value).isoformat().replace('+00:00', 'Z')
+
+
+# Separate the storage convention from UTC API/server timestamps.
+SAO_LUIS = ZoneInfo('America/Fortaleza')
+
+
+def database_datetime(value):
+    """Interpret naive MySQL DATETIME as Sao Luis, never as UTC."""
+    if isinstance(value, (bytes, bytearray)):
+        value = value.decode('utf-8')
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=SAO_LUIS)
+    return value.astimezone(SAO_LUIS)
+
+
+def database_iso_utc(value):
+    return iso_utc(database_datetime(value))
+
+
+def database_filter(value):
+    """Offset-bearing API dates become naive local DATETIME SQL parameters.
+
+    Naive API inputs retain the existing documented UTC interpretation.
+    """
+    return utc_datetime(value).astimezone(SAO_LUIS).replace(tzinfo=None)
 
 
 def point_profile(sensor_id, gateway_id):
