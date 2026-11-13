@@ -51,7 +51,7 @@ def point_profile(sensor_id, gateway_id):
     # Accept the receiver's fallback gateway as well as the configured ID, while
     # preserving isolation if a different explicit gateway is sent for this sensor.
     sensor_key = str(sensor_id)
-    laboratory = bool(config.LAB_SENSOR_ID) and sensor_key == str(int(config.LAB_SENSOR_ID)) and (
+    laboratory = sensor_key in config.lab_sensor_ids() and (
         sensor_key not in NODE_GATEWAYS or gateway_id == config.LAB_GATEWAY_ID
     ) and gateway_id in (config.LAB_GATEWAY_ID, config.DEFAULT_GATEWAY_ID, 'gateway_legacy', None, '')
     return {

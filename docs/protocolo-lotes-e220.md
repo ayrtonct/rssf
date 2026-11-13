@@ -1,6 +1,6 @@
 # Laboratorio E220 e coexistencia com o no instalado
 
-O POST `/api/salvar_dados` preserva o formato legado. Lotes somente sao aceitos para o par explicitamente configurado em `LAB_SENSOR_ID` e `LAB_GATEWAY_ID`. O mesmo ID em outro gateway continua legado. `LAB_SENSOR_ID` vazio desabilita lotes; nao use o ID dos testes como configuracao real.
+O POST `/api/salvar_dados` preserva o formato legado. Lotes somente sao aceitos para os pares explicitamente configurados em `LAB_SENSOR_ID` e `LAB_GATEWAY_ID`. `LAB_SENSOR_ID` aceita um ou mais senderAddress separados por virgula (ex.: `21768,4512`); cada no forma um ponto proprio `(sensor_id, gateway_id)`. O mesmo ID em outro gateway continua legado. `LAB_SENSOR_ID` vazio desabilita lotes; nao use o ID dos testes como configuracao real.
 
 ## Contrato
 
@@ -9,6 +9,22 @@ O receptor de laboratorio deve incluir `gateway_id: "gateway_lab_01"` no JSON, a
 Neste perfil SEM sensores, todas as temperaturas sao armazenadas como NULL, inclusive sentinelas numericas recebidas do firmware. Nao use esse perfil em um no com sensores reais. RSSI e identidade sao preservados. O backend valida todo o lote antes de gravar, usa uma transacao e retorna 201 com `medicoes_salvas`; entrada invalida retorna 400 sem gravacao e erro de persistencia retorna 500 com rollback.
 
 `data_hora` e o horario local de Sao Luis do banco menos `idade_min`, com uma referencia por lote. Sao estimativas dos ciclos, nao timestamps exatos de transmissao. O item de idade zero representa o contato mais recente. O firmware nao envia tensao da bateria, identificador de lote nem timestamps absolutos: este painel acompanha comunicacao, nao calcula carga, consumo, quantidade exata de pacotes ou entrega garantida. Reenvios podem duplicar amostras.
+
+## Teste comparativo: com e sem buffer
+
+Dois transmissores podem enviar ao mesmo tempo pelo `gateway_lab_01`, um com buffer e outro sem:
+
+1. Grave `transmissor_paper` nas duas placas, uma com `LEITURAS_POR_ENVIO 16` (com buffer, lote a cada 8 h) e outra com `LEITURAS_POR_ENVIO 1` (sem buffer, uma leitura a cada 30 min).
+2. Anote o senderAddress de cada uma no serial e configure `LAB_SENSOR_ID=<com_buffer>,<sem_buffer>` no backend.
+3. Grave o `receptor_paper` atual: ele le o cabecalho e aceita pacotes de 15 B (sem buffer) a 195 B (lote cheio).
+4. Ligue os transmissores com cerca de 15 minutos de diferenca. Ligados juntos, os envios iniciais colidem, e os ciclos de 30 minutos ficam em fase.
+
+Cuidados na analise:
+
+- O RSSI de um lote e gravado nas 16 linhas. Compare RSSI por pacote recebido (linhas com `idade_min` zero), nao por linha.
+- Nao ha numero de sequencia: a entrega e estimada pela contagem de linhas esperadas no periodo. Um lote perdido remove 16 leituras de uma vez.
+- O backend nao mede energia. Autonomia aparece so como o ultimo contato de cada no; consumo vem da bancada.
+- Os dois nos usam o perfil de laboratorio (temperaturas NULL e limites de status 540/1440 min).
 
 ## Status e historico
 

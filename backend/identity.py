@@ -12,7 +12,7 @@ NODE_GATEWAYS = {
 def canonical_gateway_id(sensor_id, gateway_id):
     """Map configured nodes to stable identities, including the lab receiver's fallback ID."""
     sensor_key = str(sensor_id) if sensor_id is not None else None
-    if (config.LAB_SENSOR_ID and sensor_key == str(int(config.LAB_SENSOR_ID))
+    if (sensor_key in config.lab_sensor_ids()
             and (sensor_key not in NODE_GATEWAYS or gateway_id == config.LAB_GATEWAY_ID)
             and gateway_id in (None, '', config.LAB_GATEWAY_ID, config.DEFAULT_GATEWAY_ID, LEGACY_GATEWAY_ID)):
         return config.LAB_GATEWAY_ID
@@ -26,7 +26,7 @@ def gateway_query_values(sensor_id, gateway_id):
     if not gateway_id:
         return ()
     sensor_key = str(sensor_id) if sensor_id is not None else None
-    if (config.LAB_SENSOR_ID and sensor_key == str(int(config.LAB_SENSOR_ID))
+    if (sensor_key in config.lab_sensor_ids()
             and (sensor_key not in NODE_GATEWAYS or gateway_id == config.LAB_GATEWAY_ID)
             and gateway_id == config.LAB_GATEWAY_ID):
         # Include rows written before gateway_unknown was normalized to LAB_GATEWAY_ID.
