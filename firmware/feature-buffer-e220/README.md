@@ -6,10 +6,13 @@ Grave transmissor_paper/transmissor_paper.ino e receptor_paper/receptor_paper.in
 1. Configure LAB_SENSOR_ID no backend com o senderAddress real do transmissor (impresso no serial a 115200 baud).
 2. Confira LAB_GATEWAY_ID no backend e no receptor: gateway_lab_01 por padrao. Ajuste a rede Wi-Fi do receptor.
 3. Ligue primeiro o receptor e aguarde a mensagem de modo NORMAL/aguardando pacotes e a conexao Wi-Fi.
-4. Ligue ou reinicie o transmissor. Ele coleta uma leitura e envia imediatamente um Packet do tamanho habitual, com qntd_medicoes=1. O receptor gera um lote com idade_min=0. O backend de laboratorio transforma as temperaturas em NULL.
+4. Ligue ou reinicie o transmissor. Ele coleta uma leitura e envia imediatamente um pacote de 15 B (cabecalho + 1 leitura), com qntd_medicoes=1. O receptor gera um lote com idade_min=0. O backend de laboratorio transforma as temperaturas em NULL.
 5. Confira no receptor a mensagem HTTP 201 / Gravacao confirmada pelo backend. Depois confira o ponto no dashboard (atualizacao de aproximadamente 30 segundos).
 
 Sucesso local do E220 nao e ACK do receptor nem confirmacao HTTP. O transmissor nao recebe confirmacao fim a fim. Se o envio inicial nao aparecer, confira ID, gateway, rede e canal; depois reinicie o transmissor com o receptor pronto.
+
+## Com e sem buffer
+`LEITURAS_POR_ENVIO` no transmissor define quantas leituras vao em cada envio: 16 (padrao, com buffer) ou 1 (sem buffer, envio a cada 30 min). O pacote no ar tem 3 + 12 x medicoes bytes. O receptor le o cabecalho e aceita qualquer tamanho de 1 a 16 leituras, e liga o byte de RSSI no modulo se estiver desligado. O RSSI segue o manual do E220: dBm = -(256 - valor). Para o teste comparativo, ver `docs/protocolo-lotes-e220.md`.
 
 ## Cadencia e bateria
 O envio inicial esvazia o buffer. Apos isso, o transmissor dorme 30 minutos e acumula 16 novas leituras: o proximo lote sai aproximadamente 8 horas depois, seguido de lotes no mesmo intervalo. Tempo de processamento adiciona pequeno desvio. Acordar do deep sleep nao repete o envio inicial. Reset, regravacao, brownout ou religamento iniciam novo ensaio, descartam o buffer antigo e fazem novo envio inicial. Abrir o monitor serial pode reiniciar certas placas.

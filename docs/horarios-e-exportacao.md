@@ -3,7 +3,7 @@
 ## Contrato implementado
 
 - Campo: IDs 1 e 44204, cada transmissao de 30 minutos usa o INSERT individual e seu CURRENT_TIMESTAMP. Nao subtrai idades nem reconstrui lotes.
-- Laboratorio: somente o par LAB_SENSOR_ID / LAB_GATEWAY_ID configurado aceita `medicoes`. O gateway deve estar explicito no POST; identificacao historica por fallback nao autoriza lote. Um unico CURRENT_TIMESTAMP ancora as idades recebidas (0 a 450 minutos, ate 16 amostras). O pacote regular sai a cada 8 horas; o firmware tambem envia uma amostra no inicio do ensaio.
+- Laboratorio: somente os nos listados em LAB_SENSOR_ID (um ou mais, separados por virgula) no LAB_GATEWAY_ID configurado aceitam `medicoes`. O gateway deve estar explicito no POST; identificacao historica por fallback nao autoriza lote. Um unico CURRENT_TIMESTAMP ancora as idades recebidas (0 a 450 minutos, ate 16 amostras). O pacote regular sai a cada 8 horas; o firmware tambem envia uma amostra no inicio do ensaio.
 - O perfil de laboratorio existente continua SEM sondas: temperaturas NULL, RSSI preservado. Nao o usar como perfil de campo.
 - Banco DATETIME: horario de Sao Luis, sessao MySQL -03:00 tanto no INSERT individual quanto no lote. A mudanca de sessao nao altera valores DATETIME existentes.
 - API: ISO 8601 com Z, calculado a partir do DATETIME local. Relogio de servidor UTC permanece UTC. Filtros com offset convertem para DATETIME local; entradas sem offset continuam interpretadas como UTC por compatibilidade.

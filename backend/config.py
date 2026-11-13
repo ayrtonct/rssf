@@ -31,8 +31,32 @@ LAB_SENSOR_ID = os.getenv('LAB_SENSOR_ID', '').strip()
 LAB_GATEWAY_ID = os.getenv('LAB_GATEWAY_ID', 'gateway_lab_01').strip()
 LAB_ONLINE_MINUTES = int(os.getenv('LAB_ONLINE_MINUTES', 540))
 LAB_OFFLINE_MINUTES = int(os.getenv('LAB_OFFLINE_MINUTES', 1440))
-if LAB_SENSOR_ID and (not LAB_SENSOR_ID.isdecimal() or not 1 <= int(LAB_SENSOR_ID) <= 65534):
-    raise ValueError('LAB_SENSOR_ID deve estar entre 1 e 65534')
+
+
+def parse_lab_sensor_ids(value):
+    """LAB_SENSOR_ID aceita um ou mais senderAddress separados por virgula.
+
+    Varios nos de laboratorio podem enviar pelo mesmo LAB_GATEWAY_ID (por
+    exemplo, um no com buffer e outro sem, no teste comparativo). Cada par
+    (sensor_id, gateway_id) continua sendo um ponto independente.
+    """
+    ids = []
+    for part in (value or '').split(','):
+        part = part.strip()
+        if not part:
+            continue
+        if not part.isdecimal() or not 1 <= int(part) <= 65534:
+            raise ValueError('LAB_SENSOR_ID deve conter IDs entre 1 e 65534, separados por virgula')
+        ids.append(str(int(part)))
+    return frozenset(ids)
+
+
+def lab_sensor_ids():
+    # Lido a cada chamada para que testes e recarga de configuracao vejam o valor atual.
+    return parse_lab_sensor_ids(LAB_SENSOR_ID)
+
+
+parse_lab_sensor_ids(LAB_SENSOR_ID)
 if not 0 < LAB_ONLINE_MINUTES < LAB_OFFLINE_MINUTES:
     raise ValueError('Limites de status do laboratorio invalidos')
 if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', LAB_GATEWAY_ID):

@@ -24,7 +24,18 @@
 
 #define BUFFER_SIZE 16
 
-// Ensaio de laboratorio: envio inicial e, depois, lotes de 16 ciclos.
+// Leituras acumuladas antes de cada envio (teste comparativo de buffer):
+//   16 -> no COM buffer: envio inicial e, depois, um lote a cada 16 ciclos (8 h).
+//    1 -> no SEM buffer: envia a leitura de cada ciclo (30 min).
+// O pacote transmitido tem 3 + 12 x medicoes bytes (15 B sem buffer, 195 B com
+// 16 leituras), entao o no sem buffer nao paga o tempo no ar de um lote vazio.
+// Cada no precisa ter o seu senderAddress listado em LAB_SENSOR_ID no backend.
+// Pode vir de fora: arduino-cli compile --build-property "compiler.cpp.extra_flags=-DLEITURAS_POR_ENVIO=1"
+#ifndef LEITURAS_POR_ENVIO
+#define LEITURAS_POR_ENVIO 16
+#endif
+static_assert(LEITURAS_POR_ENVIO >= 1 && LEITURAS_POR_ENVIO <= BUFFER_SIZE,
+              "LEITURAS_POR_ENVIO deve ficar entre 1 e BUFFER_SIZE");
 
 // variáveis para definir endereço do nó sensor
 uint16_t NODE_ADDRESS;
@@ -85,12 +96,18 @@ bool transmitPacket() {
   delay(50);
   ResponseStructContainer c = e220.getConfiguration();
   if (c.status.code != E220_SUCCESS || c.data == nullptr) {
-    Serial.println("[TX] Falha ao ler configuracao E220.");
+    Serial.printf("[TX] Falha ao ler configuracao E220: %s\n",
+              c.status.getResponseDescription().c_str());
     c.close();
     return false;
   }
   Configuration configuration = *(Configuration*)c.data;
   c.close();
+  // Um comando logo apos a resposta do anterior e rejeitado (FF FF FF):
+  // espera o AUX subir e mais 50 ms antes de uma eventual gravacao.
+  auxWaitStart = millis();
+  while (digitalRead(AUX_PIN) == LOW && millis() - auxWaitStart < 1000) delay(5);
+  delay(50);
   byte wantAddH = NODE_ADDRESS >> 8;
   byte wantAddL = NODE_ADDRESS & 0xFF;
   if (configuration.CHAN != CHANNEL || configuration.ADDH != wantAddH
@@ -109,8 +126,11 @@ bool transmitPacket() {
     }
   }
   e220.setMode(MODE_0_NORMAL);
+  // Envia so as medicoes preenchidas; o receptor le o cabecalho e calcula o resto.
+  const uint8_t size = offsetof(Packet, subpacket) + packet.qntd_medicoes * sizeof(SubPacket);
+  Serial.printf("[TX] Enviando %u bytes.\n", size);
   ResponseStatus result = e220.sendFixedMessage(
-      LAB_RECEIVER_ADDH, LAB_RECEIVER_ADDL, CHANNEL, &packet, sizeof(Packet));
+      LAB_RECEIVER_ADDH, LAB_RECEIVER_ADDL, CHANNEL, &packet, size);
   Serial.printf("[TX] Resultado local: %s; confira HTTP 201 no receptor e o dashboard.\n",
                 result.getResponseDescription().c_str());
   return result.code == E220_SUCCESS;
@@ -120,7 +140,7 @@ void setup() {
   Serial.begin(115200);
   const bool startup = esp_reset_reason() != ESP_RST_DEEPSLEEP;
   // Reinicio interrompe o ensaio: descarte RTC antigo para nao atribuir idades falsas.
-  if (startup || packet.qntd_medicoes >= BUFFER_SIZE) packet = {};
+  if (startup || packet.qntd_medicoes >= LEITURAS_POR_ENVIO) packet = {};
 
   // atribuição de endereço para o nó sensor via endereço MAC
   uint64_t chipmac = ESP.getEfuseMac();
@@ -137,8 +157,8 @@ void setup() {
   sensors.requestTemperatures();
 
   
-  if(packet.qntd_medicoes >= BUFFER_SIZE){
-    // nada ocorre, nao devem ser armazenados mais do que 16 subpacotes no pacote 
+  if(packet.qntd_medicoes >= LEITURAS_POR_ENVIO){
+    // nada ocorre, nao devem ser armazenados mais subpacotes do que o lote comporta
   }
   else{
     for(int i = 0; i < 6; i++) {
@@ -147,9 +167,11 @@ void setup() {
     packet.qntd_medicoes++;
   }
 
-  if (startup || packet.qntd_medicoes == BUFFER_SIZE) {
-    Serial.printf("[TX] %s | senderAddress=%u | medicoes=%u\n",
-                  startup ? "INICIAL" : "LOTE", NODE_ADDRESS, packet.qntd_medicoes);
+  if (startup || packet.qntd_medicoes == LEITURAS_POR_ENVIO) {
+    Serial.printf("[TX] %s | %s | senderAddress=%u | medicoes=%u\n",
+                  startup ? "INICIAL" : "LOTE",
+                  LEITURAS_POR_ENVIO == 1 ? "SEM buffer" : "COM buffer",
+                  NODE_ADDRESS, packet.qntd_medicoes);
     const bool sent = transmitPacket();
     if (!sent) Serial.println("[TX] Sem confirmacao local. Ligue o receptor e reinicie para testar novamente.");
     // Sem ACK/retry no protocolo atual. Nao reenvie amostras antigas como idade zero.

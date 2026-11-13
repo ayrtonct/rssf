@@ -19,5 +19,7 @@ jobs:
           arduino-cli lib install "EByte LoRa E220 library" "OneWire" "DallasTemperature" "ArduinoJson"
       - name: Compile transmitter
         run: arduino-cli compile --fqbn esp32:esp32:esp32 firmware/feature-buffer-e220/transmissor_paper
+      - name: Compile transmitter without buffer
+        run: arduino-cli compile --fqbn esp32:esp32:esp32 --build-property "compiler.cpp.extra_flags=-DLEITURAS_POR_ENVIO=1" firmware/feature-buffer-e220/transmissor_paper
       - name: Compile receiver
         run: arduino-cli compile --fqbn esp32:esp32:esp32 firmware/feature-buffer-e220/receptor_paper
