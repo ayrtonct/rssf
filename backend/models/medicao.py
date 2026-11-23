@@ -4,6 +4,7 @@ from datetime import timedelta
 import mysql.connector
 from config import DB_CONFIG
 from identity import canonical_gateway_id, gateway_query_values
+from featured_periods import featured_periods
 from monitoring import database_iso_utc, point_profile
 
 class MedicaoModel:
@@ -229,6 +230,25 @@ class MedicaoModel:
             f"CASE WHEN {column} IS NOT NULL AND {column} <> -127 "
             f"AND NOT (sensor_id = 1 AND {column} = 85) THEN {column} END"
         )
+
+    @staticmethod
+    def get_featured_periods(sensor_id, gateway_id):
+        gateways = gateway_query_values(sensor_id, gateway_id)
+        placeholders = ', '.join(['%s'] * len(gateways))
+        channels = [f'({MedicaoModel.valid_temp_expr(c)} IS NOT NULL)'
+                    for c in MedicaoModel.SENSOR_COLUMNS]
+        sql = f"""
+            SELECT MIN(data_hora), MAX(data_hora), COUNT(*),
+                   {' + '.join('MAX(' + c + ')' for c in channels)}
+            FROM medicoes
+            WHERE sensor_id = %s AND gateway_id IN ({placeholders})
+              AND data_hora IS NOT NULL AND ({' OR '.join(channels)})
+            GROUP BY DATE(data_hora), HOUR(data_hora), FLOOR(MINUTE(data_hora) / 30)
+            ORDER BY MIN(data_hora)
+        """
+        with mysql.connector.connect(**DB_CONFIG) as conn, conn.cursor() as cursor:
+            cursor.execute(sql, (sensor_id, *gateways))
+            return featured_periods(cursor.fetchall())
 
     @staticmethod
     def get_featured_days(sensor_id, gateway_id):
