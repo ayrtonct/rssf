@@ -281,7 +281,7 @@ class TestPersistenceAndSchema(unittest.TestCase):
         MedicaoModel.get_estatisticas_por_sensor(sensor_id=1, gateway_id='gateway_node_1')
 
         sql, params = cursor.execute.call_args.args
-        self.assertIn('NOT (sensor_id = 1 AND temp_ds1 = 85)', sql)
+        self.assertIn('NOT (sensor_id = 1 AND (temp_ds1 < 20 OR temp_ds1 = 85))', sql)
         self.assertIn('gateway_id IN (%s, %s)', sql)
         self.assertEqual(params, (1, 'gateway_node_1', 'gateway_legacy'))
 
