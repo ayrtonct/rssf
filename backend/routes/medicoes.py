@@ -211,6 +211,8 @@ def get_featured_days():
     gateway_id = request.args.get('gateway_id')
     if not sensor_id or not is_valid_gateway_id(gateway_id):
         return jsonify({'error': 'Informe sensor_id e gateway_id do ponto'}), 400
+    if request.args.get("janela") == "continua":
+        return jsonify(MedicaoModel.get_featured_periods(sensor_id, gateway_id))
     return jsonify(MedicaoModel.get_featured_days(sensor_id, gateway_id))
 
 
