@@ -72,3 +72,24 @@ class MySQLIntegration(unittest.TestCase):
         self.assertEqual(stats['max'], 49)
         filtered = MedicaoModel.get_history_summary('1', 'gateway_node_1', start, start + timedelta(minutes=9))
         self.assertEqual(filtered['total'], 10)
+
+    def test_featured_days_rank_valid_measurements_for_selected_point(self):
+        rows = [
+            ('2026-04-10 23:59:59', 'gateway_legacy', 1, 40),
+            ('2026-04-10 23:29:59', 'gateway_node_1', 1, 42),
+            ('2026-04-10 22:59:59', 'gateway_node_1', 1, -127),
+            ('2026-04-10 22:29:59', 'gateway_node_1', 1, 85),
+            ('2026-04-10 21:59:59', 'other_gateway', 1, 43),
+            ('2026-04-10 21:29:59', 'gateway_legacy', 44204, 45),
+            ('2026-04-11 00:00:00', 'gateway_node_1', 1, 41),
+            ('2026-04-12 09:00:00', 'gateway_node_1', 1, 41),
+            ('2026-04-12 09:30:00', 'gateway_node_1', 1, 42),
+            ('2026-04-12 10:00:00', 'gateway_node_1', 1, 43),
+        ]
+        self.cursor.executemany(
+            'INSERT INTO medicoes (data_hora,gateway_id,sensor_id,temp_ds1) VALUES (%s,%s,%s,%s)', rows)
+        self.conn.commit()
+        response = self.client.get('/api/medicoes/cenarios?sensor_id=1&gateway_id=gateway_node_1')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), [
+            {'day': '2026-04-12', 'count': 3}, {'day': '2026-04-10', 'count': 2}])
