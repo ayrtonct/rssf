@@ -21,3 +21,19 @@ def test_sparse_days_and_short_runs_do_not_join_across_outage():
     start = datetime(2026, 11, 1)
     assert featured_periods(run(start, 70) + run(start + timedelta(days=2), 60)) == []
     assert featured_periods(run(start, 80, step=60)) == []
+
+
+def test_all_qualifying_runs_are_returned_in_full_and_in_date_order():
+    start = datetime(2026, 4, 10, 16)
+    rows = []
+    for i, length in enumerate([97, 241, 101, 145, 111, 99]):
+        rows.extend(run(start + timedelta(days=i * 10), length))
+    periods = featured_periods(rows)
+    assert [p['count'] for p in periods] == [97, 241, 101, 145, 111, 99]
+    assert periods[1]['ate'] == (start + timedelta(days=15)).isoformat()
+
+
+def test_shorter_august_campaign_requires_second_node_threshold():
+    rows = run(datetime(2026, 8, 28, 16), 77)
+    assert featured_periods(rows) == []
+    assert featured_periods(rows, minimum_hours=36)[0]['count'] == 77

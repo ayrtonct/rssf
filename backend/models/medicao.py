@@ -248,7 +248,9 @@ class MedicaoModel:
         """
         with mysql.connector.connect(**DB_CONFIG) as conn, conn.cursor() as cursor:
             cursor.execute(sql, (sensor_id, *gateways))
-            return featured_periods(cursor.fetchall())
+            # The second field node has a documented August run of about 38 hours.
+            minimum_hours = 36 if str(sensor_id) == '44204' and gateway_id == 'gateway_node_2' else 48
+            return featured_periods(cursor.fetchall(), minimum_hours)
 
     @staticmethod
     def get_featured_days(sensor_id, gateway_id):
