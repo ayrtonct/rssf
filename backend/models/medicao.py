@@ -223,6 +223,34 @@ class MedicaoModel:
                 conn.close()
 
     @staticmethod
+    def valid_temp_expr(sensor):
+        column = f"temp_{sensor}"
+        return (
+            f"CASE WHEN {column} IS NOT NULL AND {column} <> -127 "
+            f"AND NOT (sensor_id = 1 AND {column} = 85) THEN {column} END"
+        )
+
+    @staticmethod
+    def get_featured_days(sensor_id, gateway_id):
+        gateways = gateway_query_values(sensor_id, gateway_id)
+        placeholders = ', '.join(['%s'] * len(gateways))
+        valid = ' OR '.join(f'({MedicaoModel.valid_temp_expr(channel)}) IS NOT NULL'
+                            for channel in MedicaoModel.SENSOR_COLUMNS)
+        sql = f"""
+            SELECT DATE(data_hora) AS day, COUNT(*) AS total
+            FROM medicoes
+            WHERE sensor_id = %s AND gateway_id IN ({placeholders})
+              AND data_hora IS NOT NULL AND ({valid})
+            GROUP BY DATE(data_hora)
+            HAVING COUNT(DISTINCT data_hora) >= 2
+            ORDER BY total DESC, day DESC
+            LIMIT 4
+        """
+        with mysql.connector.connect(**DB_CONFIG) as conn, conn.cursor() as cursor:
+            cursor.execute(sql, (sensor_id, *gateways))
+            return [{'day': str(day), 'count': total} for day, total in cursor.fetchall()]
+
+    @staticmethod
     def get_estatisticas_por_sensor(inicio=None, fim=None, sensor_id=None, gateway_id=None):
         conn = None
         cursor = None
@@ -230,19 +258,12 @@ class MedicaoModel:
             conn = mysql.connector.connect(**DB_CONFIG)
             cursor = conn.cursor(dictionary=True)
 
-            def valid_temp_expr(sensor):
-                column = f"temp_{sensor}"
-                return (
-                    f"CASE WHEN {column} IS NOT NULL AND {column} <> -127 "
-                    f"AND NOT (sensor_id = 1 AND {column} = 85) THEN {column} END"
-                )
-
             aggregate_sql = ", ".join(
                 [
-                    f"AVG({valid_temp_expr(sensor)}) AS avg_{sensor}, "
-                    f"MAX({valid_temp_expr(sensor)}) AS max_{sensor}, "
-                    f"MIN({valid_temp_expr(sensor)}) AS min_{sensor}, "
-                    f"COUNT({valid_temp_expr(sensor)}) AS count_{sensor}"
+                    f"AVG({MedicaoModel.valid_temp_expr(sensor)}) AS avg_{sensor}, "
+                    f"MAX({MedicaoModel.valid_temp_expr(sensor)}) AS max_{sensor}, "
+                    f"MIN({MedicaoModel.valid_temp_expr(sensor)}) AS min_{sensor}, "
+                    f"COUNT({MedicaoModel.valid_temp_expr(sensor)}) AS count_{sensor}"
                     for sensor in MedicaoModel.SENSOR_COLUMNS
                 ]
             )
