@@ -228,7 +228,7 @@ class MedicaoModel:
         column = f"temp_{sensor}"
         return (
             f"CASE WHEN {column} IS NOT NULL AND {column} <> -127 "
-            f"AND NOT (sensor_id = 1 AND {column} = 85) THEN {column} END"
+            f"AND NOT (sensor_id = 1 AND ({column} < 20 OR {column} = 85)) THEN {column} END"
         )
 
     @staticmethod
@@ -352,8 +352,7 @@ class MedicaoModel:
             first = int(bounds['first_ts'])
             width = max(1, (int(bounds['last_ts']) - first) // 1000 + 1)
             temperatures = ', '.join(
-                f'AVG(CASE WHEN temp_{channel} <> -127 AND NOT '
-                f'(sensor_id = 1 AND temp_{channel} = 85) THEN temp_{channel} END) AS temp_{channel}'
+                f'AVG({MedicaoModel.valid_temp_expr(channel)}) AS temp_{channel}'
                 for channel in MedicaoModel.SENSOR_COLUMNS)
             cursor.execute(
                 f'SELECT MIN(data_hora) AS data_hora, MAX(id) AS id, {temperatures}, '
